@@ -1,4 +1,4 @@
-# tetris
+# Tetяis
 
 A tkinter implementation of Tetris
 
