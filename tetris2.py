@@ -12,7 +12,6 @@ drop   : request to instantly drop the piece
 
 """
 
-import time
 import random
 import Tkinter as tk
 
@@ -102,39 +101,34 @@ class Application(tk.Frame):
         self.grid()
         self.width = width
         self.height = height
-        self.board = [[0]*width for _ in xrange(height)]
+        self.board = [[None]*width for _ in xrange(height)]
         self.size = size
         self.create_widgets()
         self.draw_grid()
         self.create_events()
+        #self._coords = (0, self.height)
+        self._delay = 1000
+        self._after_id = None
+
+        self._tetromino_name = random.choice(tetrominos.keys())
+        self._tetromino, self._color = tetrominos[self._tetromino_name]
+        self._actual = 0
+        self._coords = (3, 1)
         self._pieces = []
-        self._coords = (0, self.height)
+
         self._start()
 
     def _start(self):
         self._coords = (self._coords[0], self._coords[1] + 1)
-        if self._coords[1] > self.height - 3:
+        if not self.can_be_moved('Down'):
             self._tetromino_name = random.choice(tetrominos.keys())
             self._tetromino, self._color = tetrominos[self._tetromino_name]
             self._actual = 0
             self._coords = (3, 1)
-        else:
-            self.draw_tetromino()
-        self.canvas.after(1000, self._start)
+            self._pieces = []
+        self.draw_tetromino()
+        self._after_id = self.canvas.after(self._delay, self._start)
 
-    def start(self):
-        self.next = random.choice(tetrominos.keys())
-        #while not self.game_over():
-        for _ in range(1):
-            actual = self.actual = self.next
-            tetromino = self.tetromino = cycle(tetrominos[actual][0])
-            #self.next = random.choice(tetrominos.keys())
-            for _ in range(10):
-                print tetromino.next()
-
-
-    def game_over(self):
-        return False
 
     def create_widgets(self):
         width = self.width * self.size
@@ -159,8 +153,7 @@ class Application(tk.Frame):
             self.canvas.create_line(x0, y, x1, y, fill=color)
 
     def draw_tetromino(self):
-        for id in self._pieces:
-            self.canvas.delete(id)
+        self.drop_pieces()
         piece = self._tetromino[self._actual]
         x0, y0 = self._coords
         for x in xrange(len(piece[0])):
@@ -173,7 +166,17 @@ class Application(tk.Frame):
                     id = self.canvas.create_rectangle(
                             x1, y1, x2, y2, width=2, fill=self._color)
                     self._pieces.append(id)
+                    self.board[y0 + y][x0 + x] = id
         self.canvas.update()
+
+    def drop_pieces(self):
+        for x in xrange(self.width):
+            for y in xrange(self.height):
+                if self.board[y][x] in self._pieces:
+                    self.board[y][x] = None
+        for id in self._pieces:
+            self.canvas.delete(id)
+        self._pieces = []
 
     def rotate(self, event):
         if len(self._tetromino) == 1:
@@ -210,6 +213,8 @@ class Application(tk.Frame):
                 self._coords = (x + 1, y)
             if event.keysym == 'Down':
                 self._coords = (x, y + 1)
+            self.canvas.after_cancel(self._after_id)
+            self._after_id = self.canvas.after(self._delay, self._start)
             self.draw_tetromino()
 
     def can_be_moved(self, direction):
@@ -218,12 +223,16 @@ class Application(tk.Frame):
         for x1 in xrange(len(piece[0])):
             for y1 in xrange(len(piece)):
                 if piece[y1][x1] == 1:
-                    if direction == 'Left' and x + x1 - 1 < 0:
+                    if direction == 'Left' and \
+                       (x + x1 - 1 < 0 or self.board[y + y1][x + x1]):
                         return False
-                    if direction == 'Right' and x + x1 > self.width - 2:
+                    if direction == 'Right' and \
+                       (x + x1 > self.width - 2 or self.board[y + y1][x + x1 + 1]):
                         return False
-                    if direction == 'Down' and y + y1 > self.height - 2:
+                    if direction == 'Down' and \
+                       (((y + y1) > self.height - 2) or (self.board[y + y1][x + x1])):
                         return False
+                    print (x, y), (y + y1)
         return True
 
 
