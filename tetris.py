@@ -15,6 +15,9 @@ drop   : request to instantly drop the piece
 import random
 import Tkinter as tk
 
+from itertools import cycle
+from pprint import pprint as pp
+
 
 i = [((0,0,0,0),
       (1,1,1,1),
@@ -81,7 +84,7 @@ z = [((0,0,0),
       (0,1,1),
       (0,1,0))]
 
-tetrominos = {'i': (i, 'cyan'),
+tetrominos = {'i': (i, '#09f'), # cyan
               'o': (o, 'yellow'),
               't': (t, 'magenta'),
               'j': (j, 'blue'),
@@ -90,41 +93,56 @@ tetrominos = {'i': (i, 'cyan'),
               'z': (z, 'red')
               }
 
-WIDTH = 10
-HEIGHT = 20
-
-board = [[0]*WIDTH for _ in xrange(HEIGHT)]
 
 
 class Application(tk.Frame):
 
-    def __init__(self, width=10, height=20, size=20):
+    def __init__(self, width=10, height=20, size=30):
         tk.Frame.__init__(self)
         self.grid()
         self.width = width
         self.height = height
+        self.board = [[0]*width for _ in xrange(height)]
         self.size = size
         self.create_widgets()
         self.draw_grid()
         self.create_events()
-        self._pieces = []
+        #self._coords = (0, self.height)
+        self._delay = 1000
+        self._after_id = None
+
         self._tetromino_name = random.choice(tetrominos.keys())
         self._tetromino, self._color = tetrominos[self._tetromino_name]
         self._actual = 0
-        self._coords = (3, 2)
+        self._coords = (3, 1)
+        self._pieces = []
+
+        self._start()
+
+    def _start(self):
+        if self.can_be_moved('Down'):
+            self._coords = (self._coords[0], self._coords[1] + 1)
+        else:
+            self._tetromino_name = random.choice(tetrominos.keys())
+            self._tetromino, self._color = tetrominos[self._tetromino_name]
+            self._actual = 0
+            self._coords = (3, 1)
+            self._pieces = []
         self.draw_tetromino()
+        self._after_id = self.canvas.after(self._delay, self._start)
+
 
     def create_widgets(self):
         width = self.width * self.size
         height = self.height * self.size
-        self.canvas = tk.Canvas(self, width=width, height=height, bg='white')
+        self.canvas = tk.Canvas(self, width=width, height=height, bg='black')
         self.canvas.grid(row=0, column=0)
 
         #self.status = tk.Label(self, text="")
         #self.status.grid(row=1, column=0)
 
     def draw_grid(self):
-        color = 'gray'
+        color = '#333'
         for i in xrange(self.width - 1):
             x = (self.size * i) + self.size
             y0 = 0
@@ -137,8 +155,7 @@ class Application(tk.Frame):
             self.canvas.create_line(x0, y, x1, y, fill=color)
 
     def draw_tetromino(self):
-        for id in self._pieces:
-            self.canvas.delete(id)
+        self.drop_pieces()
         piece = self._tetromino[self._actual]
         x0, y0 = self._coords
         for x in xrange(len(piece[0])):
@@ -151,8 +168,22 @@ class Application(tk.Frame):
                     id = self.canvas.create_rectangle(
                             x1, y1, x2, y2, width=2, fill=self._color)
                     self._pieces.append(id)
+                    self.board[y0 + y][x0 + x] = id
+        self.canvas.update()
+        pp(self.board)
+
+    def drop_pieces(self):
+        for x in xrange(self.width):
+            for y in xrange(self.height):
+                if self.board[y][x] in self._pieces:
+                    self.board[y][x] = 0
+        for id in self._pieces:
+            self.canvas.delete(id)
+        self._pieces = []
 
     def rotate(self, event):
+        if len(self._tetromino) == 1:
+            return
         if self._actual < len(self._tetromino) - 1:
             next = self._actual + 1
         else:
@@ -163,39 +194,64 @@ class Application(tk.Frame):
 
     def can_be_rotated(self, next):
         piece = self._tetromino[next]
-        x0, y0 = self._coords
-        for x in xrange(len(piece[0])):
-            for y in xrange(len(piece)):
-                if piece[y][x] == 1:
-                    if x0 == -1 and x == 1:
+        board = self.board
+        x, y = self._coords
+        for x0 in xrange(len(piece[0])):
+            for y0 in xrange(len(piece)):
+                if piece[y0][x0] == 1:
+                    if x == -1 and x0 == 1:
                         return False
-                    if x0 + x > self.width - 1:
+                    if x + x0 >= self.width:
+                        return False
+                    if y + y0 >= self.height:
+                        return False
+                    x1 = x + x0
+                    y1 = y + y0
+                    if board[y1][x1] and (board[y1][x1] not in self._pieces):
                         return False
         return True
 
     def move(self, event):
-        coords = None
-        x, y = self._coords
-        if event.keysym == 'Left':
-            coords = (x - 1, y)
-        if event.keysym == 'Right':
-            coords = (x + 1, y)
-        if event.keysym == 'Down':
-            coords = (x, y + 1)
-        if coords and self.can_be_moved(event.keysym):
-            self._coords = coords
-            self.draw_tetromino()
+        if event.keysym in ('Left', 'Right', 'Down') and \
+           self.can_be_moved(event.keysym):
+            x, y = self._coords
+            if event.keysym == 'Left':
+                self._coords = (x - 1, y)
+                self.draw_tetromino()
+            if event.keysym == 'Right':
+                self._coords = (x + 1, y)
+                self.draw_tetromino()
+            if event.keysym == 'Down':
+                self._coords = (x, y + 1)
+                self.canvas.after_cancel(self._after_id)
+                self.draw_tetromino()
+                self._after_id = self.canvas.after(self._delay, self._start)
 
     def can_be_moved(self, direction):
         piece = self._tetromino[self._actual]
+        board = self.board
         x, y = self._coords
-        for x1 in xrange(len(piece[0])):
-            for y1 in xrange(len(piece)):
-                if piece[y1][x1] == 1:
-                    if direction == 'Left' and x + x1 - 1 < 0:
-                        return False
-                    if direction == 'Right' and x + x1 > self.width - 2:
-                        return False
+        for x0 in xrange(len(piece[0])):
+            for y0 in xrange(len(piece)):
+                if piece[y0][x0] == 1:
+                    if direction == 'Left':
+                        x1 = x + x0 - 1
+                        y1 = y + y0
+                        if x1 < 0 or (board[y1][x1] and
+                           board[y1][x1] not in self._pieces):
+                            return False
+                    if direction == 'Right':
+                        x1 = x + x0 + 1
+                        y1 = y + y0
+                        if x1 >= self.width or (board[y1][x1] and
+                           board[y1][x1] not in self._pieces):
+                            return False
+                    if direction == 'Down':
+                        x1 = x + x0
+                        y1 = y + y0 + 1
+                        if y1 >= self.height or (board[y1][x1] and
+                           board[y1][x1] not in self._pieces):
+                            return False
         return True
 
 
