@@ -103,7 +103,7 @@ Z = (
 class Application(tk.Frame):
 
     def __init__(self, width=10, height=20, size=30):
-        tk.Frame.__init__(self)
+        tk.Frame.__init__(self, bg='black')
         self.grid()
         self.width = width
         self.height = height
@@ -112,7 +112,9 @@ class Application(tk.Frame):
         self.tetrominos = self.get_tetrominos()
         self.next = copy.deepcopy(random.choice(self.tetrominos))
         self.tetromino = None
-        self.score = 0
+        self.status = {'score': 0, 'last_points': 0, 'next': '',
+                       'O': 0, 'I': 0, 'S': 0, 'T': 0, 'Z': 0, 'L': 0, 'J': 0,
+                       'sum': 0, 'rows': 0, 'level': 0,}
         self.delay = 1000
         self.job_id = None
         self.create_widgets()
@@ -150,6 +152,35 @@ class Application(tk.Frame):
         coords = (int(self.width / 2.0 - len(tetromino[0]) / 2.0), 1)
         return coords
 
+    def create_widgets(self):
+        top = self.winfo_toplevel()
+        top.config(bg='black')
+
+        width = self.width * self.size
+        height = self.height * self.size
+        self.canvas = tk.Canvas(self, width=width, height=height, bg='black')
+        self.canvas.grid(row=0, column=0, padx=20, pady=20)
+
+        sidebar = self.sidebar = tk.Frame(self, bg='black')
+        sidebar.grid(row=0, column=1, padx=(0, 20), pady=20, sticky=tk.N)
+
+        self.lb_status = tk.Label(sidebar, bg='black', fg='white',
+                                  font=('monospace', 12))
+        self.lb_status.grid()
+
+    def draw_grid(self):
+        color = '#333'
+        for i in xrange(self.width - 1):
+            x = (self.size * i) + self.size
+            y0 = 0
+            y1 = self.size * self.height
+            self.canvas.create_line(x, y0, x, y1, fill=color)
+        for i in xrange(self.height - 1):
+            x0 = 0
+            x1 = self.size * self.width
+            y = (self.size * i) + self.size
+            self.canvas.create_line(x0, y, x1, y, fill=color)
+
     def start(self):
         if self.tetromino and self.can_be_moved('Down'):
             x, y = self.tetromino['coords']
@@ -157,7 +188,10 @@ class Application(tk.Frame):
         else:
             self.check_status()
             self.tetromino = self.next
+            self.status[self.tetromino['name']] += 1
+            self.status['sum'] += 1
             self.next = copy.deepcopy(random.choice(self.tetrominos))
+            self.status['next'] = self.next['name']
             self.update_status()
         self.draw_tetromino()
         self.job_id = self.canvas.after(self.delay, self.start)
@@ -189,33 +223,31 @@ class Application(tk.Frame):
 
     def set_score(self, rows):
         scores = [40, 100, 300, 1200]
-        self.score += scores[len(rows) - 1]
+        points = scores[len(rows) - 1]
+        self.status['rows'] = len(rows)
+        self.status['last_points'] = points
+        self.status['score'] += points
         self.update_status()
 
     def update_status(self):
-        text = 'Score: %d, Next: %s' % (self.score, self.next['name'])
-        self.status.config(text=text)
-
-    def create_widgets(self):
-        width = self.width * self.size
-        height = self.height * self.size
-        self.canvas = tk.Canvas(self, width=width, height=height, bg='black')
-        self.canvas.grid(row=0, column=0)
-        self.status = tk.Label(self)
-        self.status.grid(row=1, column=0)
-
-    def draw_grid(self):
-        color = '#333'
-        for i in xrange(self.width - 1):
-            x = (self.size * i) + self.size
-            y0 = 0
-            y1 = self.size * self.height
-            self.canvas.create_line(x, y0, x, y1, fill=color)
-        for i in xrange(self.height - 1):
-            x0 = 0
-            x1 = self.size * self.width
-            y = (self.size * i) + self.size
-            self.canvas.create_line(x0, y, x1, y, fill=color)
+        lines = [
+            'Score: %6s' % self.status['score'],
+            '',
+            'Level: %6s' % self.status['level'],
+            'Rows : %6s' % self.status['rows'],
+            '',
+            'O    : %6s' % self.status['O'],
+            'I    : %6s' % self.status['I'],
+            'J    : %6s' % self.status['J'],
+            'L    : %6s' % self.status['L'],
+            'T    : %6s' % self.status['T'],
+            'S    : %6s' % self.status['S'],
+            'Z    : %6s' % self.status['Z'],
+            'Sum  : %6s' % self.status['sum'],
+            '',
+            'Next : %6s' % self.status['next'],
+            ] 
+        self.lb_status.config(text='\n'.join(lines))
 
     def draw_tetromino(self):
         self.drop_pieces()
