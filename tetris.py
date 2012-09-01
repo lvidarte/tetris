@@ -57,7 +57,8 @@ COMPLETE_ROW_FG_COLOR = 'white'
 
 # Levels
 LEVEL_0_DELAY = 1000 # inital delay between steps
-LEVEL_STEPS = 100 # total pieces by level
+ROWS_BY_LEVEL = 10
+POINTS = [40, 100, 300, 1200] # 1 , 2, 3, Tetris
 # ===============================================
 
 
@@ -239,22 +240,20 @@ class Application(tk.Frame):
         return self.board
 
     def get_init_status(self):
-        return {'score': 0, 'last_points': 0, 'next': '',
+        return {'score': 0, 'rows': 0, 'level': 0,
                 'O': 0, 'I': 0, 'S': 0, 'T': 0, 'Z': 0, 'L': 0, 'J': 0,
-                'total': 0, 'rows': 0, 'level': 0,}
+                'total': 0, 'next': ''}
 
     def step(self):
         if self.tetromino and self.can_be_moved('Down'):
-            x, y = self.tetromino['coords']
-            self.tetromino['coords'] = (x, y + 1)
-            self.draw_tetromino()
+            self.move_tetromino((0, 1))
             self.job_id = self.canvas.after(self.delay, self.step)
         else:
             self.check_status()
             if self.is_gameover(self.next):
                 self.canvas.after_cancel(self.job_id)
                 title = 'Game Over'
-                message = '%s\nYour score: %d' % (title, self.status['score'])
+                message = 'Your score: %d' % self.status['score']
                 tkMessageBox.showinfo(title, message)
                 self.game_init()
             else:
@@ -262,10 +261,6 @@ class Application(tk.Frame):
                 self.next = copy.deepcopy(random.choice(self.tetrominos))
                 self.status[self.tetromino['name']] += 1
                 self.status['total'] += 1
-                if self.status['total'] % LEVEL_STEPS == 0:
-                    self.status['level'] += 1
-                    if self.delay:
-                        self.delay -= 100
                 self.status['next'] = self.next['name']
                 self.update_label_status()
                 self.draw_tetromino()
@@ -283,6 +278,7 @@ class Application(tk.Frame):
     def del_rows(self, rows):
         for row in rows:
             for id in self.board[row]:
+                self.canvas.tag_raise(id) # bring to front
                 self.canvas.itemconfig(id, fill=COMPLETE_ROW_BG_COLOR,
                                        outline=COMPLETE_ROW_FG_COLOR)
         self.canvas.update()
@@ -298,10 +294,12 @@ class Application(tk.Frame):
         self.canvas.update()
 
     def set_score(self, rows):
-        scores = [40, 100, 300, 1200]
-        points = scores[len(rows) - 1]
-        self.status['rows'] = len(rows)
-        self.status['last_points'] = points
+        points = POINTS[len(rows) - 1]
+        self.status['rows'] += len(rows)
+        if self.status['rows'] % ROWS_BY_LEVEL == 0:
+            self.status['level'] += 1
+            if self.delay:
+                self.delay -= 100
         self.status['score'] += points
         self.update_label_status()
 
@@ -368,8 +366,6 @@ class Application(tk.Frame):
             self.tetromino['ids'] = []
 
     def rotate(self, event):
-        if len(self.tetromino['pieces']) == 1:
-            return
         if self.tetromino['actual'] < len(self.tetromino['pieces']) - 1:
             next = self.tetromino['actual'] + 1
         else:
@@ -379,6 +375,8 @@ class Application(tk.Frame):
             self.draw_tetromino()
 
     def can_be_rotated(self, next):
+        if len(self.tetromino['pieces']) == 1:
+            return False
         piece = self.tetromino['pieces'][next]
         board = self.board
         x, y = self.tetromino['coords']
@@ -399,20 +397,39 @@ class Application(tk.Frame):
         return True
 
     def move(self, event):
-        if event.keysym in ('Left', 'Right', 'Down') and \
-           self.can_be_moved(event.keysym):
+        if self.can_be_moved(event.keysym):
             x, y = self.tetromino['coords']
             if event.keysym == 'Left':
-                self.tetromino['coords'] = (x - 1, y)
-                self.draw_tetromino()
+                self.move_tetromino((-1, 0))
             if event.keysym == 'Right':
-                self.tetromino['coords'] = (x + 1, y)
-                self.draw_tetromino()
+                self.move_tetromino((1, 0))
             if event.keysym == 'Down':
-                self.tetromino['coords'] = (x, y + 1)
                 self.canvas.after_cancel(self.job_id)
-                self.draw_tetromino()
+                self.move_tetromino((0, 1))
                 self.job_id = self.canvas.after(self.delay, self.step)
+
+    def move_tetromino(self, offset):
+        x, y = offset
+        ranges = {
+            (-1, 0): ((0, self.width, 1), (0, self.height, 1)),
+            ( 1, 0): ((self.width-1, -1, -1), (0, self.height, 1)),
+            ( 0, 1): ((0, self.width, 1), (self.height-1, -1, -1))
+            }
+
+        x_start_stop_step, y_start_stop_step = ranges[offset]
+        for y0 in xrange(*y_start_stop_step):
+            for x0 in xrange(*x_start_stop_step):
+                id = self.board[y0][x0]
+                if id in self.tetromino['ids']:
+                    self.board[y0 + y][x0 + x] = self.board[y0][x0]
+                    self.board[y0][x0] = 0
+                    self.canvas.move(id, x * self.size, y * self.size)
+
+        x1, y1 = self.tetromino['coords']
+        self.tetromino['coords'] = (x1 + x, y1 + y)
+        self.canvas.update()
+        if DEBUG:
+            pp(self.board)
 
     def can_be_moved(self, direction):
         piece = self.tetromino['pieces'][self.tetromino['actual']]
