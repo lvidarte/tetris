@@ -23,14 +23,11 @@ import copy
 import Tkinter as tk
 import tkMessageBox
 
-from pprint import pprint as pp
 
 
 # ===============================================
 # OPTIONS
 # ===============================================
-DEBUG = True
-
 # Board
 WIDTH = 10
 HEIGHT = 20
@@ -52,8 +49,8 @@ J_COLOR = 'blue'
 L_COLOR = 'orange'
 S_COLOR = 'green'
 Z_COLOR = 'red'
-COMPLETE_ROW_BG_COLOR = None # None for inherit
-COMPLETE_ROW_FG_COLOR = 'white'
+COMPLETE_ROW_BG_COLOR = 'white' # None for inherit
+COMPLETE_ROW_FG_COLOR = None
 
 # Levels
 LEVEL_0_DELAY = 1000 # inital delay between steps
@@ -143,6 +140,12 @@ Z = (
      )
 
 
+try:
+    from config import *
+except ImportError:
+    pass
+
+
 class Application(tk.Frame):
 
     def __init__(self, width=WIDTH, height=HEIGHT, size=SIZE):
@@ -166,12 +169,9 @@ class Application(tk.Frame):
         self.canvas = tk.Canvas(self, width=width, height=height, bg=BG_COLOR)
         self.canvas.grid(row=0, column=0, padx=20, pady=20)
 
-        sidebar = self.sidebar = tk.Frame(self, bg=BG_COLOR)
-        sidebar.grid(row=0, column=1, padx=(0, 20), pady=20, sticky=tk.N)
-
-        self.lb_status = tk.Label(sidebar, bg=BG_COLOR, fg=FG_COLOR,
-                                  font=('monospace', FONT_SIZE))
-        self.lb_status.grid()
+        lb_status = self.lb_status = tk.Label(
+            self, bg=BG_COLOR, fg=FG_COLOR, font=('monospace', FONT_SIZE))
+        lb_status.grid(row=0, column=1, padx=(0, 20), pady=20, sticky=tk.N)
 
     def draw_grid(self):
         for i in xrange(self.width - 1):
@@ -192,29 +192,23 @@ class Application(tk.Frame):
         self.canvas.bind_all('<KeyPress-Right>', self.move)
 
     def get_tetrominos(self):
-        return [
-            {'name': 'I', 'pieces': I, 'color': I_COLOR,
-             'coords': self.get_init_coords(I),
-             'actual': 0, 'ids': []},
-            {'name': 'O', 'pieces': O, 'color': O_COLOR,
-             'coords': self.get_init_coords(O),
-             'actual': 0, 'ids': []},
-            {'name': 'T', 'pieces': T, 'color': T_COLOR,
-             'coords': self.get_init_coords(T),
-             'actual': 0, 'ids': []},
-            {'name': 'J', 'pieces': J, 'color': J_COLOR,
-             'coords': self.get_init_coords(J),
-             'actual': 0, 'ids': []},
-            {'name': 'L', 'pieces': L, 'color': L_COLOR,
-             'coords': self.get_init_coords(L),
-             'actual': 0, 'ids': []},
-            {'name': 'S', 'pieces': S, 'color': S_COLOR,
-             'coords': self.get_init_coords(S),
-             'actual': 0, 'ids': []},
-            {'name': 'Z', 'pieces': Z, 'color': Z_COLOR,
-             'coords': self.get_init_coords(Z),
-             'actual': 0, 'ids': []},
-            ]
+        tetrominos = []
+        for name in 'IOTLJSZ':
+            tetromino = globals()[name]
+            data = {
+                'name'  : name,
+                'pieces': tetromino,
+                'actual': 0,
+                'color' : globals()[name + '_COLOR'],
+                'coords': self.get_init_coords(tetromino),
+                'rows': len(tetromino[0]),
+                'cols': len(tetromino[0][0]),
+                'total_pieces': len(tetromino),
+                'can_rotate'  : True if len(tetromino) > 1 else False,
+                'ids': [],
+                }
+            tetrominos.append(data)
+        return tetrominos
 
     def get_init_coords(self, tetromino):
         return (int(self.width / 2.0 - len(tetromino[0]) / 2.0), 1)
@@ -226,6 +220,7 @@ class Application(tk.Frame):
         self.status = self.get_init_status()
         self.delay = LEVEL_0_DELAY
         self.job_id = None
+        self.running = True
         self.step()
 
     def get_init_board(self):
@@ -251,7 +246,6 @@ class Application(tk.Frame):
         else:
             self.check_status()
             if self.is_gameover(self.next):
-                self.canvas.after_cancel(self.job_id)
                 title = 'Game Over'
                 message = 'Your score: %d' % self.status['score']
                 tkMessageBox.showinfo(title, message)
@@ -298,7 +292,7 @@ class Application(tk.Frame):
         self.status['rows'] += len(rows)
         if self.status['rows'] % ROWS_BY_LEVEL == 0:
             self.status['level'] += 1
-            if self.delay:
+            if self.delay > 100:
                 self.delay -= 100
         self.status['score'] += points
         self.update_label_status()
@@ -324,13 +318,14 @@ class Application(tk.Frame):
         self.lb_status.config(text='\n'.join(lines))
 
     def is_gameover(self, next):
-        piece = next['pieces'][0]
         x, y = next['coords']
-        for y0 in xrange(len(piece)):
-            for x0 in xrange(len(piece[0])):
+        for y0 in xrange(next['rows']):
+            for x0 in xrange(next['cols']):
                 x1 = x0 + x
                 y1 = y0 + y
                 if self.board[y1][x1]:
+                    self.running = False
+                    self.canvas.after_cancel(self.job_id)
                     return True
         return False
 
@@ -338,8 +333,8 @@ class Application(tk.Frame):
         self.del_tetromino()
         piece = self.tetromino['pieces'][self.tetromino['actual']]
         x0, y0 = self.tetromino['coords']
-        for y in xrange(len(piece)):
-            for x in xrange(len(piece[0])):
+        for y in xrange(self.tetromino['rows']):
+            for x in xrange(self.tetromino['cols']):
                 if piece[y][x] == 1:
                     x1 = (x0 + x) * self.size
                     y1 = (y0 + y) * self.size
@@ -352,8 +347,6 @@ class Application(tk.Frame):
                     self.tetromino['ids'].append(id)
                     self.board[y0 + y][x0 + x] = id
         self.canvas.update()
-        if DEBUG:
-            pp(self.board)
 
     def del_tetromino(self):
         if self.tetromino['ids']:
@@ -366,22 +359,21 @@ class Application(tk.Frame):
             self.tetromino['ids'] = []
 
     def rotate(self, event):
-        if self.tetromino['actual'] < len(self.tetromino['pieces']) - 1:
-            next = self.tetromino['actual'] + 1
-        else:
-            next = 0
-        if self.can_be_rotated(next):
-            self.tetromino['actual'] = next
-            self.draw_tetromino()
+        if self.tetromino['can_rotate']:
+            if self.tetromino['actual'] < self.tetromino['total_pieces'] - 1:
+                next = self.tetromino['actual'] + 1
+            else:
+                next = 0
+            if self.can_be_rotated(next):
+                self.tetromino['actual'] = next
+                self.draw_tetromino()
 
     def can_be_rotated(self, next):
-        if len(self.tetromino['pieces']) == 1:
-            return False
         piece = self.tetromino['pieces'][next]
         board = self.board
         x, y = self.tetromino['coords']
-        for y0 in xrange(len(piece)):
-            for x0 in xrange(len(piece[0])):
+        for y0 in xrange(self.tetromino['rows']):
+            for x0 in xrange(self.tetromino['cols']):
                 if piece[y0][x0] == 1:
                     if x == -1 and x0 == 1:
                         return False
@@ -397,7 +389,7 @@ class Application(tk.Frame):
         return True
 
     def move(self, event):
-        if self.can_be_moved(event.keysym):
+        if self.running and self.can_be_moved(event.keysym):
             x, y = self.tetromino['coords']
             if event.keysym == 'Left':
                 self.move_tetromino((-1, 0))
@@ -428,15 +420,13 @@ class Application(tk.Frame):
         x1, y1 = self.tetromino['coords']
         self.tetromino['coords'] = (x1 + x, y1 + y)
         self.canvas.update()
-        if DEBUG:
-            pp(self.board)
 
     def can_be_moved(self, direction):
         piece = self.tetromino['pieces'][self.tetromino['actual']]
         board = self.board
         x, y = self.tetromino['coords']
-        for y0 in xrange(len(piece)):
-            for x0 in xrange(len(piece[0])):
+        for y0 in xrange(self.tetromino['rows']):
+            for x0 in xrange(self.tetromino['cols']):
                 if piece[y0][x0] == 1:
                     if direction == 'Left':
                         x1 = x + x0 - 1
