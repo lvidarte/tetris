@@ -26,22 +26,22 @@ import tkMessageBox
 
 
 # ===============================================
-# OPTIONS
+# WINDOW OPTIONS
 # ===============================================
-# Board
-WIDTH = 10
-HEIGHT = 20
 BG_COLOR = 'black'
-FG_COLOR = 'white'
-GRID_COLOR = '#333'
+
+# Board
+BOARD_BG_COLOR = 'black'
+BOARD_FG_COLOR = 'white'
+BOARD_GRID_COLOR = '#333'
 
 # Status
-FONT_SIZE = 14
+FONT_SIZE = 12
+FONT_COLOR = 'white'
 
 # Tetrominos
-SIZE = 30 # square size in pixels
-BORDER_COLOR = 'black'
-BORDER_WIDTH = 2 # in pixels
+TETROMINO_FG_COLOR = 'black'
+TETROMINO_BORDER_WIDTH = 2 # in pixels
 I_COLOR = 'cyan'
 O_COLOR = 'yellow'
 T_COLOR = 'magenta'
@@ -51,13 +51,18 @@ S_COLOR = 'green'
 Z_COLOR = 'red'
 COMPLETE_ROW_BG_COLOR = 'white' # None for inherit
 COMPLETE_ROW_FG_COLOR = None
+# ===============================================
+
 
 # Levels
 LEVEL_0_DELAY = 1000 # inital delay between steps
 ROWS_BY_LEVEL = 10
 POINTS = [40, 100, 300, 1200] # 1 , 2, 3, Tetris
-# ===============================================
 
+# 
+WIDTH = 10
+HEIGHT = 20
+SIZE = 20 # square size in pixels
 
 # Tetrominos
 I = (
@@ -140,11 +145,6 @@ Z = (
      )
 
 
-try:
-    from config import *
-except ImportError:
-    pass
-
 
 class Application(tk.Frame):
 
@@ -166,11 +166,13 @@ class Application(tk.Frame):
 
         width = self.width * self.size
         height = self.height * self.size
-        self.canvas = tk.Canvas(self, width=width, height=height, bg=BG_COLOR)
+        self.canvas = tk.Canvas(self, width=width, height=height,
+                                bg=BOARD_BG_COLOR,
+                                highlightbackground=BOARD_FG_COLOR)
         self.canvas.grid(row=0, column=0, padx=20, pady=20)
 
         lb_status = self.lb_status = tk.Label(
-            self, bg=BG_COLOR, fg=FG_COLOR, font=('monospace', FONT_SIZE))
+            self, bg=BG_COLOR, fg=FONT_COLOR, font=('monospace', FONT_SIZE))
         lb_status.grid(row=0, column=1, padx=(0, 20), pady=20, sticky=tk.N)
 
     def draw_grid(self):
@@ -178,12 +180,12 @@ class Application(tk.Frame):
             x = (self.size * i) + self.size
             y0 = 0
             y1 = self.size * self.height
-            self.canvas.create_line(x, y0, x, y1, fill=GRID_COLOR)
+            self.canvas.create_line(x, y0, x, y1, fill=BOARD_GRID_COLOR)
         for i in xrange(self.height - 1):
             x0 = 0
             x1 = self.size * self.width
             y = (self.size * i) + self.size
-            self.canvas.create_line(x0, y, x1, y, fill=GRID_COLOR)
+            self.canvas.create_line(x0, y, x1, y, fill=BOARD_GRID_COLOR)
 
     def create_events(self):
         self.canvas.bind_all('<KeyPress-Up>', self.rotate)
@@ -341,8 +343,8 @@ class Application(tk.Frame):
                     x2 = x1 + self.size
                     y2 = y1 + self.size
                     id = self.canvas.create_rectangle(
-                            x1, y1, x2, y2, width=BORDER_WIDTH,
-                            outline=BORDER_COLOR,
+                            x1, y1, x2, y2, width=TETROMINO_BORDER_WIDTH,
+                            outline=TETROMINO_FG_COLOR,
                             fill=self.tetromino['color'])
                     self.tetromino['ids'].append(id)
                     self.board[y0 + y][x0 + x] = id
@@ -461,7 +463,17 @@ if __name__ == '__main__':
                       help="board height")
     parser.add_option('-s', '--size', type=int, default=SIZE,
                       help="square size")
+    parser.add_option('-t', '--theme', type=str, default=None,
+                      help="color config file")
     args, _ = parser.parse_args()
+
+    if args.theme:
+        if args.theme.endswith('.py'):
+            args.theme = args.theme[:-3]
+        try:
+            exec('from %s import *' % args.theme)
+        except ImportError:
+            pass
 
     app = Application(args.width, args.height, args.size)
     app.master.title(prog)
