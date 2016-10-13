@@ -2,17 +2,21 @@
 # -*- coding: utf-8 -*-
 
 """
-
 Tetяis
 
-    Keys
-    --------------------------------------------------
-    left   : request to translate left by one column
-    right  : request to translate right by one column
-    up     : request to do a counterclockwise rotation
-    down   : request to translate down by one row
+Author: Leo Vidarte <http://nerdlabs.com.ar>
 
-__author__ = 'Leonardo Vidarte'
+This is free software,
+you can redistribute it and/or modify it
+under the terms of the GPL version 3
+as published by the Free Software Foundation.
+
+Keys
+--------------------------------------------------
+left   : request to translate left by one column
+right  : request to translate right by one column
+up     : request to do a counterclockwise rotation
+down   : request to translate down by one row
 
 """
 
@@ -458,11 +462,11 @@ if __name__ == '__main__':
     from optparse import OptionParser
     parser = OptionParser(description=prog)
     parser.add_option('-W', '--width', type=int, default=WIDTH,
-                      help="board width")
+                      help="board width (default: 10)")
     parser.add_option('-H', '--height', type=int, default=HEIGHT,
-                      help="board height")
+                      help="board height (default: 20)")
     parser.add_option('-s', '--size', type=int, default=SIZE,
-                      help="square size")
+                      help="square size (default: 20)")
     parser.add_option('-t', '--theme', type=str, default=None,
                       help="color config file")
     args, _ = parser.parse_args()
